@@ -308,8 +308,8 @@ function minutesLabel(min){
  * - API_TOKEN : apps-script-backend.gs 안의 SECRET_TOKEN과 반드시 동일해야 함
  * ========================================================================= */
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbyNEG9-P3gLPFDQ_UScr1rZ0bprw3dA4ZnZ94q7loELhWvmgEPjnRPkynAr5O0sXIFvAw/exec',
-  API_TOKEN: 'yuna09',
+  API_URL: 'PASTE_YOUR_WEB_APP_URL_HERE',
+  API_TOKEN: 'CHANGE_THIS_TO_YOUR_OWN_SECRET_1234',
 };
 const CONFIGURED = CONFIG.API_URL.indexOf('http') === 0;
 
@@ -323,7 +323,7 @@ let state = {
   parentComments: {},     // taskId -> [{id,text,ts}]
   selectedDate: dateKey(new Date()),
 };
-let ui = { toast:null, modal:null, incompleteForm:null, incompleteDraft:{} };
+let ui = { toast:null, modal:null, incompleteForm:null, incompleteDraft:{}, pendingErrorToast:null };
 let loaded = false;
 let connStatus = CONFIGURED ? 'connecting' : 'unconfigured'; // connecting | online | offline | unconfigured
 
@@ -380,10 +380,19 @@ async function loadData(){
 }
 
 let saveTimer=null;
+function isTypingNow(){
+  const el = document.activeElement;
+  return !!(el && ['INPUT','SELECT','TEXTAREA'].includes(el.tagName));
+}
 function persist(){
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async ()=>{
-    if(!CONFIGURED){ connStatus='unconfigured'; render(); return; }
+    if(!CONFIGURED){
+      connStatus='unconfigured';
+      if(!isTypingNow()) render();
+      return;
+    }
+    let failed = false;
     try{
       await apiSave({
         weeklySchedule: state.weeklySchedule,
@@ -395,9 +404,16 @@ function persist(){
     }catch(e){
       console.error('저장 실패', e);
       connStatus = 'offline';
-      showToast('서버 저장 실패 · 인터넷 연결을 확인해주세요');
+      failed = true;
     }
-    render();
+    // 입력 중(입력창에 포커스가 있는 동안)에는 화면을 다시 그리면 키보드가 내려가버리므로
+    // 지금 당장은 화면을 갱신하지 않고, 포커스가 빠져나가는 다음 타이밍에 자연스럽게 반영합니다.
+    if(isTypingNow()){
+      if(failed) ui.pendingErrorToast = '서버 저장 실패 · 인터넷 연결을 확인해주세요';
+      return;
+    }
+    if(failed) showToast('서버 저장 실패 · 인터넷 연결을 확인해주세요');
+    else render();
   }, 400);
 }
 function persistRole(){
@@ -407,8 +423,7 @@ function persistRole(){
 /* 다른 사람이 저장한 최신 내용을 주기적으로 가져와 화면에 반영 (입력 중에는 건너뜀) */
 async function pollLatest(){
   if(!CONFIGURED) return;
-  const typing = document.activeElement && ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName);
-  if(typing || ui.modal || ui.incompleteForm) return; // 편집 중이면 방해하지 않음
+  if(isTypingNow() || ui.modal || ui.incompleteForm) return; // 편집 중이면 방해하지 않음
   try{
     const d = await apiLoad();
     if(d){
@@ -1075,6 +1090,17 @@ function bindEvents(){
 }
 
 /* ============================= 초기 실행 ============================= */
+/* 입력 중 저장이 실패했을 경우, 타이핑이 끝나고 포커스가 빠져나갈 때 안내 표시 */
+document.addEventListener('focusout', ()=>{
+  setTimeout(()=>{
+    if(ui.pendingErrorToast && !isTypingNow()){
+      const msg = ui.pendingErrorToast;
+      ui.pendingErrorToast = null;
+      showToast(msg);
+    }
+  }, 60);
+});
+
 loadData();
 
 /* 서비스워커 등록 (오프라인 지원, 항상 최신 버전 우선) */
