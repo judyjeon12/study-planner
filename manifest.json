@@ -1,0 +1,10 @@
+{
+  "name": "우리집 학습 플래너",
+  "short_name": "학습플래너",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#F7F8FA",
+  "theme_color": "#1E3A5F",
+  "orientation": "portrait",
+  "icons": []
+}
