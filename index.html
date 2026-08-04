@@ -308,8 +308,8 @@ function minutesLabel(min){
  * - API_TOKEN : apps-script-backend.gs 안의 SECRET_TOKEN과 반드시 동일해야 함
  * ========================================================================= */
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbyNEG9-P3gLPFDQ_UScr1rZ0bprw3dA4ZnZ94q7loELhWvmgEPjnRPkynAr5O0sXIFvAw/exec',
-  API_TOKEN: 'yuna09',
+  API_URL: 'PASTE_YOUR_WEB_APP_URL_HERE',
+  API_TOKEN: 'CHANGE_THIS_TO_YOUR_OWN_SECRET_1234',
 };
 const CONFIGURED = CONFIG.API_URL.indexOf('http') === 0;
 
@@ -323,7 +323,7 @@ let state = {
   parentComments: {},     // taskId -> [{id,text,ts}]
   selectedDate: dateKey(new Date()),
 };
-let ui = { toast:null, modal:null, incompleteForm:null };
+let ui = { toast:null, modal:null, incompleteForm:null, incompleteDraft:{} };
 let loaded = false;
 let connStatus = CONFIGURED ? 'connecting' : 'unconfigured'; // connecting | online | offline | unconfigured
 
@@ -746,7 +746,7 @@ function renderIncompleteForm(dStr, t){
   return `
   <div class="inline-form" data-incomplete-form="${t.id}">
     <div class="row">
-      <div><label>미완료된 부분</label><input type="text" data-if="detail" value="${escapeHtml(t.incompleteDetail||'')}" placeholder="예: 22번까지만 풀고 나머지 못함"></div>
+      <div><label>미완료된 부분</label><input type="text" data-if="detail" value="${escapeHtml((ui.incompleteDraft[t.id] !== undefined ? ui.incompleteDraft[t.id] : t.incompleteDetail)||'')}" placeholder="예: 22번까지만 풀고 나머지 못함"></div>
     </div>
     <div class="row">
       <div>
@@ -965,7 +965,9 @@ function bindEvents(){
       b.onclick = ()=> setStatus(dStr, taskId, b.dataset.status);
     });
     card.querySelectorAll('[data-field]').forEach(inp=>{
-      inp.onchange = ()=> updateGoalText(dStr, taskId, inp.value);
+      // 포커스를 벗어날 때(onchange)만 저장하면, 그 사이 다른 버튼 클릭으로 화면이
+      // 먼저 다시 그려질 경우 입력값이 사라질 수 있어 타이핑 즉시(oninput) 저장합니다.
+      inp.oninput = ()=> updateGoalText(dStr, taskId, inp.value);
     });
     const commentInput = card.querySelector(`[data-comment-input="${taskId}"]`);
     const commentBtn = card.querySelector(`[data-comment-submit="${taskId}"]`);
@@ -973,7 +975,20 @@ function bindEvents(){
       commentBtn.onclick = ()=>{ addComment(taskId, commentInput.value); };
     }
   });
-  document.querySelectorAll('[data-if-cancel]').forEach(b=> b.onclick = cancelIncomplete );
+  document.querySelectorAll('[data-incomplete-form]').forEach(form=>{
+    const taskId = form.dataset.incompleteForm;
+    const detailInput = form.querySelector('[data-if="detail"]');
+    if(detailInput){
+      detailInput.oninput = ()=> { ui.incompleteDraft[taskId] = detailInput.value; };
+    }
+  });
+  document.querySelectorAll('[data-if-cancel]').forEach(b=>{
+    b.onclick = ()=>{
+      const form = b.closest('[data-incomplete-form]');
+      delete ui.incompleteDraft[form.dataset.incompleteForm];
+      cancelIncomplete();
+    };
+  });
   document.querySelectorAll('[data-if-submit]').forEach(b=>{
     const form = b.closest('[data-incomplete-form]');
     const taskId = form.dataset.incompleteForm;
@@ -986,6 +1001,7 @@ function bindEvents(){
         expectedMinutes: get('[data-if="expectedMinutes"]'),
         carryTo: get('[data-if="carryTo"]'),
       });
+      delete ui.incompleteDraft[taskId];
     };
   });
   document.querySelectorAll('[data-action="goto-tab"]').forEach(b=>{
