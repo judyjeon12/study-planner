@@ -308,8 +308,8 @@ function minutesLabel(min){
  * - API_TOKEN : apps-script-backend.gs 안의 SECRET_TOKEN과 반드시 동일해야 함
  * ========================================================================= */
 const CONFIG = {
-  API_URL: 'https://script.google.com/macros/s/AKfycbyd5EGFCBA8QHC1EttfBZBeziYdbcJWpF70rGFakHjj4gPx0xUDWMQRGF5_S6oB6Z6d-g/exec',
-  API_TOKEN: 'yuna09',
+  API_URL: 'PASTE_YOUR_WEB_APP_URL_HERE',
+  API_TOKEN: 'CHANGE_THIS_TO_YOUR_OWN_SECRET_1234',
 };
 const CONFIGURED = CONFIG.API_URL.indexOf('http') === 0;
 
@@ -1061,30 +1061,11 @@ function bindEvents(){
 /* ============================= 초기 실행 ============================= */
 loadData();
 
-/* 서비스워커 등록 (오프라인 지원 — data URL 인라인) */
+/* 서비스워커 등록 (오프라인 지원, 항상 최신 버전 우선) */
 if('serviceWorker' in navigator){
-  const swCode = `
-    const CACHE='study-planner-v1';
-    self.addEventListener('install', e=>{ self.skipWaiting(); });
-    self.addEventListener('activate', e=>{ self.clients.claim(); });
-    self.addEventListener('fetch', e=>{
-      e.respondWith(
-        caches.open(CACHE).then(cache=>
-          cache.match(e.request).then(res=>{
-            const fetchPromise = fetch(e.request).then(netRes=>{
-              cache.put(e.request, netRes.clone());
-              return netRes;
-            }).catch(()=> res);
-            return res || fetchPromise;
-          })
-        )
-      );
-    });
-  `;
-  try{
-    const blob = new Blob([swCode], {type:'text/javascript'});
-    navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
-  }catch(e){}
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
 }
 </script>
 </body>
